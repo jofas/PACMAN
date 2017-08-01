@@ -36,8 +36,7 @@ class MallocBasedRouteMerger(object):
         tables = MulticastRoutingTables()
 
         progress = ProgressBar(
-            len(router_tables.routing_tables) * 2,
-            "Compressing Routing Tables")
+            router_tables.routing_tables, "Compressing Routing Tables")
 
         # Create all masks without holes
         allowed_masks = [FULL_MASK - ((2 ** i) - 1) for i in range(33)]
@@ -94,8 +93,7 @@ class MallocBasedRouteMerger(object):
                     entries[next_pos].processor_ids == processors and
                     (base_key & entries[next_pos].routing_entry_key) >
                     last_key_added):
-                base_key = (
-                    base_key & entries[next_pos].routing_entry_key)
+                base_key = base_key & entries[next_pos].routing_entry_key
                 next_pos += 1
             next_pos -= 1
 
@@ -104,7 +102,6 @@ class MallocBasedRouteMerger(object):
             # If there is something to merge, merge it if possible
             merge_done = False
             if next_pos != pos:
-
                 # print("At merge, base_key =", hex(base_key))
 
                 # Find the next nearest power of 2 to the number of keys
@@ -136,3 +133,27 @@ class MallocBasedRouteMerger(object):
             pos += 1
 
         return merged_routes
+
+    def _merge_a_route(self, processors, links, entries, pos, next_pos,
+                       base_key, last_key_added, merged_routes):
+        # Find the next nearest power of 2 to the number of keys that will be
+        # covered.
+        last_key = self._last_key(entries[next_pos])
+        n_keys = (1 << (last_key - base_key).bit_length()) - 1
+        n_keys_mask = ~n_keys & FULL_MASK
+        base_key = base_key & n_keys_mask
+        if base_key + n_keys >= last_key and base_key > last_key_added and (
+                next_pos + 1 >= len(entries) or
+                entries[pos].routing_entry_key + n_keys <
+                entries[next_pos + 1].routing_entry_key):
+            last_key_added = base_key + n_keys
+            merged_routes.add_multicast_routing_entry(MulticastRoutingEntry(
+                int(base_key), n_keys_mask, processors, links,
+                defaultable=False))
+            return last_key_added, next_pos, True
+        return last_key_added, pos, False
+
+    @staticmethod
+    def _last_key(entry):
+        n_keys = ~entry.mask & FULL_MASK
+        return entry.routing_entry_key + n_keys

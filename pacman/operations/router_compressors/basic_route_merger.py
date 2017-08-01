@@ -21,6 +21,7 @@ from pacman.exceptions import PacmanRoutingException
 
 _UPPER_16_BITS = 0xFFFF << 16  # upper 16 bits of 32
 _LOWER_16_BITS = 0xFFFF
+_MAX_ENTRIES = 1023
 
 
 class BasicRouteMerger(object):
@@ -41,12 +42,12 @@ class BasicRouteMerger(object):
         tables = MulticastRoutingTables()
         previous_masks = dict()
 
-        progress = ProgressBar(
-            len(router_tables.routing_tables) * 2,
-            "Compressing Routing Tables")
+        progress = ProgressBar(router_tables.routing_tables,
+                               "Compressing Routing Tables")
 
         # Create all masks without holes
-        allowed_masks = [FULL_MASK - ((2 ** i) - 1) for i in range(33)]
+        allowed_masks = frozenset(
+            FULL_MASK - ((2 ** i) - 1) for i in range(33))
 
         # Check that none of the masks have "holes" e.g. 0xFFFF0FFF has a hole
         for router_table in router_tables.routing_tables:
@@ -65,7 +66,7 @@ class BasicRouteMerger(object):
                 for entry in new_table.multicast_routing_entries)
             # print("Reduced from {} to {}".format(
             #     len(router_table.multicast_routing_entries), n_entries))
-            if n_entries > 1023:
+            if n_entries > _MAX_ENTRIES:
                 raise PacmanRoutingException(
                     "Cannot make table small enough: {} entries".format(
                         n_entries))
@@ -99,7 +100,6 @@ class BasicRouteMerger(object):
         """
         merged_routes = MulticastRoutingTable(router_table.x, router_table.y)
         keys_merged = set()
-
         entries = router_table.multicast_routing_entries
         for router_entry in entries:
             if router_entry.routing_entry_key in keys_merged:
@@ -137,8 +137,33 @@ class BasicRouteMerger(object):
                 keys_merged.add(router_entry.routing_entry_key)
         return merged_routes
 
+    def _merge_route(
+            self, entries, mask, previous_masks, router_entry, merged_routes,
+            keys_merged):
+        for extra_bits in self._get_merge_masks(mask, previous_masks):
+            new_mask = _UPPER_16_BITS | extra_bits
+            new_key = router_entry.routing_entry_key & new_mask
+            new_n_keys = ~new_mask & FULL_MASK
+
+            # Get candidates for this particular possible merge
+            potential_merges = self._mergeable_entries(
+                router_entry, entries, new_key, new_mask,
+                new_key + new_n_keys, keys_merged)
+
+            # Only do a merge if there's real merging to do
+            if len(potential_merges) > 1:
+                merged_routes.add_multicast_routing_entry(
+                    MulticastRoutingEntry(
+                        new_key, new_mask, router_entry.processor_ids,
+                        router_entry.link_ids, defaultable=False))
+                keys_merged.update(
+                    route.routing_entry_key for route in potential_merges)
+                return True
+        return False
+
+    @staticmethod
     def _mergeable_entries(
-            self, entry, entries, new_key, new_mask, new_last_key, merged):
+            entry, entries, new_key, new_mask, new_last_key, merged):
         """
         :param ~spinn_machine.MulticastRoutingEntry entry:
         :param iterable(~spinn_machine.MulticastRoutingEntry) entries:
