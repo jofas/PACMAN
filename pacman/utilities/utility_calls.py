@@ -148,7 +148,7 @@ def is_equal_or_None(a, b):
 
     :rtype: bool
     """
-    return (a is None or b is None or a == b)
+    return a is None or b is None or a == b
 
 
 def is_single(iterable):
