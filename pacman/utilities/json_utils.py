@@ -431,6 +431,7 @@ def graphs_to_json(application_graph, machine_graph, graph_mapper):
 
 def graphs_from_json(json_dict):
     json_dict = json_to_object(json_dict)
+    print("read file")
     application_graph = ApplicationGraph(json_dict.get("label"))
     machine_graph = MachineGraph(json_dict.get("label"))
     graph_mapper = GraphMapper()
