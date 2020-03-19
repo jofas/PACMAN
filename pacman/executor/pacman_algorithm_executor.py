@@ -652,6 +652,48 @@ class PACMANAlgorithmExecutor(object):
             # Execute the algorithm
             results = algorithm.call(self._internal_type_mapping)
 
+            if results is not None and 'RouterProvenanceItems' in results.keys():
+                router_prov = results['RouterProvenanceItems']
+                # expand provenance to file here in a useful way
+                import os, pandas as pd, numpy as np
+                if os.path.exists("structured_provenance.csv"):
+                    # read the file
+                    df = pd.DataFrame.from_csv("structured_provenance.csv")
+                    columns = df.columns
+                    structured_provenance = list()
+                    for i, provenance in enumerate(router_prov):
+                        if len(provenance.names) != 4:
+                            continue
+                        prov_name = provenance.names[-1]
+                        prov_value = provenance.value
+                        pop = provenance.names[0]
+                        split_router_name = provenance.names[2].split("_")
+                        x = int(split_router_name[-2])
+                        y = int(split_router_name[-1])
+                        p = np.nan
+                        fixed_sdram = np.nan
+                        sdram_per_timestep = np.nan
+                        cpu_cycles = np.nan
+                        dtcm = np.nan
+
+                        label = provenance.names[2]
+                        max_atom = np.nan
+                        min_atom = np.nan
+                        no_atoms = np.nan
+
+                        structured_provenance.append(
+                            [pop, label, min_atom, max_atom, no_atoms,
+                             x, y, p,
+                             prov_name, prov_value,
+                             fixed_sdram, sdram_per_timestep,
+                             cpu_cycles, dtcm]
+                        )
+
+                    structured_provenance_df = pd.concat([df, pd.DataFrame.from_records(
+                        structured_provenance, columns=columns)])
+                    structured_provenance_df.to_csv("structured_provenance.csv")
+
+
             if self._provenance_path:
                 self._report_full_provenance(algorithm, results)
 
