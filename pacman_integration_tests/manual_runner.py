@@ -15,11 +15,11 @@
 
 import json
 import time
-from pacman.model.routing_tables.multicast_routing_tables import (from_json)
-from pacman.model.routing_tables.multicast_routing_tables import (to_json)
-from pacman.model.routing_tables import (MulticastRoutingTables)
-from pacman.operations.algorithm_reports.routing_compression_checker_report \
-    import compare_tables
+from pacman.model.routing_tables.multicast_routing_tables import (
+    from_json, to_json)
+from pacman.model.routing_tables import MulticastRoutingTables
+from pacman.operations.router_compressors.routing_compression_checker import (
+    compare_tables)
 from pacman.operations.router_compressors.mundys_router_compressor.\
     routing_table_condenser import (
         MundyRouterCompressor)
